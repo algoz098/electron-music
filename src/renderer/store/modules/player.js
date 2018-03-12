@@ -3,7 +3,8 @@ import { ipcRenderer } from 'electron'
 const state = {
   list: [],
   config: {
-    youtube_key: ''
+    youtube_key: '',
+    youtube_show_player: false
   }
 }
 
@@ -14,7 +15,6 @@ const mutations = {
 
   SET_CONFIG (state, data) {
     state.config = data
-    console.log(state.config)
   }
 }
 

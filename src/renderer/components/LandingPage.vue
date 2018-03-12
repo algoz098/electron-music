@@ -78,7 +78,7 @@
     <div class="columns is-gapless">
       <div class="column ">
 
-        <nav class="panel is-fixed" style="top: 54px">
+        <nav ref="playlistPanel" class="panel is-fixed" style="top: 54px">
           <p class="panel-heading">
             Playlist
           </p>
@@ -110,20 +110,27 @@
             </a>
           </p>
 
-          <div class="panel-block" v-if="tabActive=='configuration'">
-            <div class="field">
-              <label class="label">Youtube APP Key</label>
-              <p class="control has-icons-left">
-                <input class="input is-small" type="text" :value="config.youtube_key" @change="$store.dispatch('CONFIG', {'type':'youtube_key', 'value':$event.target.value})">
+          <span v-if="tabActive=='configuration'">
+            <div class="panel-block" >
+              <div class="field">
+                <label class="label">Youtube APP Key</label>
+                <p class="control has-icons-left">
+                  <input class="input is-small" type="text" :value="config.youtube_key" @change="$store.dispatch('CONFIG', {'type':'youtube_key', 'value':$event.target.value})">
 
-                <span class="icon is-small is-left">
-                  <font-awesome-icon icon="key" />
-                </span>
-              </p>
+                  <span class="icon is-small is-left">
+                    <font-awesome-icon icon="key" />
+                  </span>
+                </p>
 
-              <p class="help">To use it you will need to create a Youtube api key. It sucks! Link: https://developers.google.com/youtube/v3/getting-started</p>
+                <p class="help">To use it you will need to create a Youtube api key. It sucks! Link: https://developers.google.com/youtube/v3/getting-started</p>
+              </div>
             </div>
-          </div>
+
+            <label class="panel-block">
+              <input type="checkbox" :value="true" @change="$store.dispatch('CONFIG', {'type':'youtube_show_player', 'value':!config.youtube_show_player})" :checked="config.youtube_show_player">
+              Show YT player
+            </label>
+          </span>
 
           <div class="panel-block" @click="remove_trashed" v-if="tabActive=='trashing'">
             <button class="button is-link is-outlined is-fullwidth">
@@ -175,6 +182,7 @@
           </div>
         </article>
 
+        <youtube :video-id="yt.id" @ready="yt_ready" @ended="yt_ended" :player-vars="{ autoplay: 1 }" v-show="config.youtube_show_player" player-width="100%"></youtube>
 
         <article class="media" v-for="result in yt.searchResults">
           <figure class="media-left">
@@ -209,8 +217,6 @@
 
       </div>
     </div>
-
-    <youtube :video-id="yt.id" @ready="yt_ready" @ended="yt_ended" :player-vars="{ autoplay: 1 }" v-show="false"></youtube>
 
     <audio ref="audioLocal" @play="local_status" @pause="local_status" @timeupdate="local_time" controls v-show="false">
       <source :src="local.src" type="audio/mpeg" v-if="local.src">
@@ -259,6 +265,16 @@ import { ipcRenderer } from 'electron'
         }
       }
     },
+    mounted(){
+      this.resize_panel()
+      var self = this
+      window.addEventListener('resize', function(e){
+        self.resize_panel()
+      })
+    },
+    beforeDestroy: function () {
+      document.removeEventListener('resize', this.resize_panel())
+    },
     methods: {
       test (a) {
         console.log(a)
@@ -266,6 +282,12 @@ import { ipcRenderer } from 'electron'
 
       open_external(link) {
         // sh.openExternal(link)
+      },
+
+      resize_panel(){
+        var height = window.innerHeight - 54
+        height = height + 'px'
+        this.$refs.playlistPanel.style.maxHeight = height
       },
 
       remove_trashed() {
@@ -352,7 +374,7 @@ import { ipcRenderer } from 'electron'
       next_music(){
         if(this.randomActive){
           var index = _.random(0, this.list.length-1)
-        } else if (this.playing_type == 'YT'){
+        } else if (this.type_playing == 'YT'){
           var playing = this.yt.playing
           var index = _.findIndex(this.list, function(o) { return o.data.id == playing.video_id; });
         } else {
@@ -422,7 +444,7 @@ import { ipcRenderer } from 'electron'
       },
 
       yt_search: _.debounce((e, self) => {
-        youtube.searchVideos(e)
+        youtube.searchVideos(e, 30)
           .then(results => {
               self.yt.searchResults = results
           })
@@ -482,20 +504,34 @@ import { ipcRenderer } from 'electron'
 
       time_max(){
         if (this.type_playing == 'YT' && this.yt.player) {
-          var max = this.yt.duration
-          return max.toFixed(2) || 0;
+          var time = this.yt.duration.toFixed(0)
+          var minutes = Math.floor(time / 60)
+          var seconds = time % 60;
+          seconds =  ("0" + seconds).slice(-2);
+          return minutes + ':' + seconds;
         } else {
-          var max = this.local.duration
-          return max.toFixed(2) || 0;
+          var time = this.local.duration.toFixed(0)
+          var minutes = Math.floor(time / 60)
+          var seconds = time % 60;
+          seconds =  ("0" + seconds).slice(-2);
+          return minutes + ':' + seconds;
         }
         return 0;
       },
 
       time_actual() {
-        if (this.type_playing == 'YT' && this.yt.tipe) {
-          return this.yt.time.toFixed(2) || 0 ;
+        if (this.type_playing == 'YT' && this.yt.time) {
+          var time = this.yt.time.toFixed(0)
+          var minutes = Math.floor(time / 60)
+          var seconds = time % 60;
+          seconds =  ("0" + seconds).slice(-2);
+          return minutes + ':' + seconds;
         } else {
-          return this.local.time.toFixed(2) || 0;
+          var time = this.local.time.toFixed(0)
+          var minutes = Math.floor(time / 60)
+          var seconds = time % 60;
+          seconds =  ("0" + seconds).slice(-2);
+          return minutes + ':' + seconds;
         }
 
         return 0;
@@ -518,5 +554,7 @@ import { ipcRenderer } from 'electron'
   .is-fixed{
     position: sticky;
     z-index: 498;
+    max-height: 300px;
+    overflow: auto;
   }
 </style>
